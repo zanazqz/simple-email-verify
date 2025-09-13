@@ -1,18 +1,24 @@
 {
   "name": "simple-email-verify",
   "version": "1.0.0",
+  "description": "A simple email verification system with Node.js, Express, PostgreSQL, and Nodemailer",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
-    "body-parser": "^1.20.3",
-    "cli-table3": "^0.6.5",
-    "cors": "^2.8.5",
-    "dotenv": "^16.6.1",
-    "express": "^4.21.2",
-    "nodemailer": "^6.10.1",
-    "sqlite3": "^5.1.7"
-  }
+    "body-parser": "^1.20.2",
+    "express": "^4.19.2",
+    "nodemailer": "^6.9.11",
+    "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": "18.x"
+  },
+  "author": "Your Name",
+  "license": "MIT"
 }
