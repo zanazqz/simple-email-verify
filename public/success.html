@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <title>تبریک!</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(120deg, #ff6a00, #ee0979);
+      color: white;
+      font-family: 'Vazirmatn', sans-serif;
+      text-align: center;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 2s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .quote-box {
+      background: rgba(0,0,0,0.35);
+      padding: 40px;
+      border-radius: 20px;
+      font-size: 1.6rem;
+      font-weight: bold;
+      line-height: 2.4rem;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+      max-width: 750px;
+      animation: popIn 1.5s ease-out;
+    }
+    @keyframes popIn {
+      from { transform: scale(0.8); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="quote-box">
+    کورکان وا قزای گونتان و امیشه تانه له فکر نچیت<br>
+    <span style="font-size:1.9rem; color:#ffd700;">
+      یک لحظه درد ارزش یک عمر افتخار را دارد
+    </span>
+  </div>
+</body>
+</html>
