@@ -1,135 +1,80 @@
 const express = require("express");
-const sqlite3 = require("sqlite3").verbose();
-const nodemailer = require("nodemailer");
 const bodyParser = require("body-parser");
-const cors = require("cors");
+const { Pool } = require("pg");
 require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// میدل‌ویر
-app.use(cors());
+// اتصال به دیتابیس PostgreSQL Render
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }  // Render نیاز داره
+});
+
 app.use(bodyParser.json());
-app.use(express.static("public"));
+app.use(bodyParser.urlencoded({ extended: true }));
 
-// دیتابیس SQLite
-const db = new sqlite3.Database("./users.db", (err) => {
-  if (err) console.error("DB connection error:", err);
-  else console.log("✅ Database connected");
-});
+// تست کانکشن دیتابیس
+pool.connect()
+  .then(() => console.log("✅ Connected to PostgreSQL"))
+  .catch(err => console.error("❌ DB connection error:", err));
 
-// ساخت جدول کاربران
-db.run(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    email TEXT UNIQUE,
-    password TEXT,
-    instagram_connected INTEGER,
-    verified INTEGER DEFAULT 0,
-    verification_code TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`);
-
-// تنظیمات SMTP برای Gmail
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.SMTP_USER || "your@gmail.com",
-    pass: process.env.SMTP_PASS || "yourpassword"
+// ساخت جدول (اگر وجود نداشت)
+const createTable = async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        code VARCHAR(10) NOT NULL,
+        verified BOOLEAN DEFAULT false
+      )
+    `);
+    console.log("✅ Users table ready");
+  } catch (err) {
+    console.error("❌ Error creating table:", err);
   }
-});
+};
+createTable();
 
-// 📌 ثبت‌نام
-app.post("/api/register", (req, res) => {
-  const { name, email, password, instagram_connected } = req.body;
-
-  if (!name || !email || !password) {
-    return res.status(400).json({ ok: false, error: "لطفاً همه فیلدها را پر کنید." });
-  }
-
-  // بررسی اینکه ایمیل تکراری نباشه
-  db.get("SELECT id FROM users WHERE email = ?", [email], (getErr, existing) => {
-    if (getErr) {
-      console.error("DB error:", getErr);
-      return res.status(500).json({ ok: false, error: "خطا در دیتابیس." });
-    }
-    if (existing) {
-      return res.status(400).json({ ok: false, error: "این ایمیل قبلاً ثبت‌نام شده است." });
-    }
-
-    // تولید کد تأیید
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log(`📧 Verification code for ${email} = ${verificationCode}`);
-
-    // ارسال ایمیل
-    const mailOptions = {
-      from: process.env.SMTP_USER || "your@gmail.com",
-      to: email,
-      subject: "کد تأیید ثبت‌نام",
-      text: `کد فعال‌سازی شما: ${verificationCode}`
-    };
-
-    transporter.sendMail(mailOptions, (mailErr) => {
-      if (mailErr) {
-        console.error("Email error:", mailErr);
-        return res.status(500).json({ ok: false, error: "خطا در ارسال ایمیل." });
-      }
-
-      // 📌 فقط اگر ایمیل موفقیت‌آمیز بود → ذخیره در دیتابیس
-      const query = `
-        INSERT INTO users (name, email, password, instagram_connected, verified, verification_code)
-        VALUES (?, ?, ?, ?, 0, ?)
-      `;
-      db.run(query, [name, email, password, instagram_connected ? 1 : 0, verificationCode], function (dbErr) {
-        if (dbErr) {
-          console.error("DB insert error:", dbErr);
-          if (dbErr.code === "SQLITE_CONSTRAINT") {
-            return res.status(400).json({ ok: false, error: "این ایمیل قبلاً ثبت‌نام شده است." });
-          }
-          return res.status(500).json({ ok: false, error: "خطا در ذخیره اطلاعات کاربر." });
-        }
-
-        return res.json({ ok: true, message: "ثبت‌نام موفق. لطفاً ایمیل خود را برای کد تأیید بررسی کنید." });
-      });
-    });
-  });
-});
-
-// 📌 تأیید کد
-app.post("/api/verify-code", (req, res) => {
+// ثبت ایمیل و کد
+app.post("/register", async (req, res) => {
   const { email, code } = req.body;
-
-  if (!email || !code) {
-    return res.status(400).json({ ok: false, error: "ایمیل و کد لازم است." });
+  try {
+    await pool.query(
+      "INSERT INTO users (email, code) VALUES ($1, $2) ON CONFLICT (email) DO NOTHING",
+      [email, code]
+    );
+    res.json({ success: true, message: "Email registered" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: "DB error" });
   }
-
-  db.get("SELECT verification_code FROM users WHERE email = ?", [email], (err, row) => {
-    if (err) {
-      console.error("DB error:", err);
-      return res.status(500).json({ ok: false, error: "خطا در دیتابیس." });
-    }
-    if (!row) {
-      return res.status(400).json({ ok: false, error: "کاربری با این ایمیل پیدا نشد." });
-    }
-    if (row.verification_code !== code) {
-      return res.status(400).json({ ok: false, error: "کد وارد شده اشتباه است." });
-    }
-
-    // آپدیت کاربر به verified
-    db.run("UPDATE users SET verified = 1 WHERE email = ?", [email], (updateErr) => {
-      if (updateErr) {
-        console.error("DB update error:", updateErr);
-        return res.status(500).json({ ok: false, error: "خطا در بروزرسانی وضعیت کاربر." });
-      }
-      return res.json({ ok: true, message: "ایمیل با موفقیت تأیید شد." });
-    });
-  });
 });
 
-// 📌 شروع سرور
+// تایید کد
+app.post("/verify", async (req, res) => {
+  const { email, code } = req.body;
+  try {
+    const result = await pool.query(
+      "SELECT * FROM users WHERE email=$1 AND code=$2",
+      [email, code]
+    );
+
+    if (result.rows.length > 0) {
+      await pool.query("UPDATE users SET verified=true WHERE email=$1", [email]);
+      res.json({ success: true, message: "✅ Verified successfully!" });
+    } else {
+      res.json({ success: false, message: "❌ Invalid code" });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: "DB error" });
+  }
+});
+
+// اجرا
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
